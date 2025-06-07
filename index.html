@@ -3001,16 +3001,39 @@
         <img id="fullscreenChatAvatar" class="fschat-avatar" src="" alt="avatar">
         <span id="fullscreenChatTitle" class="fschat-title"></span>
       </div>
-      <div class="fschat-header-right">
-          <button class="fschat-balance"><img src="images/logo2.png"
+            <div class="fschat-header-right">
+          <button class="fschat-balance" title="Balance"><img src="images/logo2.png"
               style="width:18px;vertical-align:middle;margin-right:4px;">0.0</button>
-        <div class="fschat-menu-wrap">
-          <button class="fschat-menu-btn">⋮</button>
-          <div class="fschat-menu">
-            <div class="fschat-menu-item">Delete chat</div>
-            <div class="fschat-menu-item">Turn on notifications</div>
-            <div class="fschat-menu-item">Pin to top of chat list</div>
-          </div>
+          <div class="fschat-menu-wrap">
+            <button class="fschat-menu-btn" title="Menu">⋮</button>
+                      <div class="fschat-menu">
+              <div class="fschat-menu-item" onclick="window.copyLink()">Copy chat link</div>
+              <div class="fschat-menu-item">Delete chat</div>
+              <div class="fschat-menu-item">Turn on notifications</div>
+              <div class="fschat-menu-item">Pin to top of chat list</div>
+            </div>
+            <script>
+              window.copyLink = function() {
+                if (!currentClubKey) return;
+                const link = window.location.origin + window.location.pathname + '?chat=' + encodeURIComponent(currentClubKey);
+                const el = document.createElement('textarea');
+                el.value = link;
+                el.setAttribute('readonly', '');
+                el.style.position = 'absolute';
+                el.style.left = '-9999px';
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                
+                // Show feedback
+                alert('Link copied to clipboard!');
+                
+                // Close menu
+                const menu = document.querySelector('.fschat-menu');
+                if (menu) menu.style.display = 'none';
+              }
+            </script>
         </div>
       </div>
     </div>
@@ -3569,11 +3592,7 @@
       const club = clubs[idx - 1];
       if (!club) return;
       currentClubKey = club.name + '|' + club.ticker;
-      openFullscreenChat({
-        avatar: club.avatar || 'https://via.placeholder.com/40x40?text=Club',
-        title: club.name + (club.ticker ? ' (' + club.ticker + ')' : ''),
-        clubId: currentClubKey
-      });
+      window.location.href = `/chat.html?chat=${encodeURIComponent(currentClubKey)}`;
     });
 
     // --- Открытие чата из Discover с кодом ---
@@ -3585,11 +3604,7 @@
       const avatar = item.querySelector('.discover-avatar')?.src || '';
       const name = item.querySelector('.discover-title')?.textContent || '';
       const ticker = (item.querySelector('.discover-title')?.textContent.match(/\(([^)]+)\)/) || [])[1] || '';
-      discoverChatData = {
-        avatar,
-        title: name + (ticker ? ' (' + ticker + ')' : ''),
-        clubId: 'discover|' + name + '|' + ticker
-      };
+      const chatId = 'discover|' + name + '|' + ticker;
 
       // Проверяем, есть ли доступ у текущего пользователя к конкретному клубу
       const currentUser = firebase.auth().currentUser;
@@ -3599,7 +3614,7 @@
 
         if (hasAccess) {
           // Если доступ к этому клубу уже есть, сразу открываем чат
-          openFullscreenChat(discoverChatData);
+          window.location.href = `/chat.html?chat=${encodeURIComponent(chatId)}`;
         } else {
           // Если доступа к этому клубу нет, показываем окно для ввода кода
           document.getElementById('discoverCodeModal').style.display = 'flex';
@@ -3634,9 +3649,10 @@
           localStorage.setItem(clubAccessKey, 'true');
         }
 
-        setTimeout(() => {
+                  setTimeout(() => {
           document.getElementById('discoverCodeModal').style.display = 'none';
-          if (discoverChatData) openFullscreenChat(discoverChatData);
+          const chatId = 'discover|' + name + '|' + ticker;
+          window.location.href = `/chat.html?chat=${encodeURIComponent(chatId)}`;
         }, 700);
       } else {
         document.getElementById('discoverCodeError').style.color = '#e00';
@@ -3644,17 +3660,46 @@
       }
     };
 
+    // Copy chat link functionality
+    function copyCurrentChatLink() {
+      if (!currentClubKey) return;
+      
+      // Create the chat link
+      const baseUrl = window.location.origin + window.location.pathname;
+      const chatLink = `${baseUrl}?chat=${encodeURIComponent(currentClubKey)}`;
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(chatLink).then(() => {
+        // Show success feedback
+        const balanceBtn = document.querySelector('.fschat-balance');
+        const originalContent = balanceBtn.innerHTML;
+        balanceBtn.innerHTML = '✓ Link copied!';
+        
+        // Restore original content after 2 seconds
+        setTimeout(() => {
+          balanceBtn.innerHTML = originalContent;
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy link. Please try again.');
+      });
+    }
+
     // --- Web3 Chat: меню ---
     (function () {
       const menuBtn = document.querySelector('.fschat-menu-btn');
       const menuWrap = document.querySelector('.fschat-menu-wrap');
+      const menu = document.querySelector('.fschat-menu');
       const menuItems = document.querySelectorAll('.fschat-menu-item');
       
-      if (menuBtn && menuWrap) {
-        menuBtn.onclick = function (e) {
+      if (menuBtn && menuWrap && menu) {
+        menuBtn.addEventListener('click', function(e) {
+          // Якщо це клік для копіювання посилання, не відкриваємо меню
+          if (e.target.hasAttribute('onclick')) return;
+          
           e.stopPropagation();
-          menuWrap.classList.toggle('open');
-        };
+          menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        });
         
         document.body.addEventListener('click', function () {
           menuWrap.classList.remove('open');
@@ -3725,6 +3770,31 @@
       }
     })();
 
+    // Copy chat link functionality
+    function copyCurrentChatLink() {
+      if (!currentClubKey) return;
+      
+      // Create the chat link
+      const baseUrl = window.location.origin + window.location.pathname;
+      const chatLink = `${baseUrl}?chat=${encodeURIComponent(currentClubKey)}`;
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(chatLink).then(() => {
+        // Show success feedback
+        const balanceBtn = document.querySelector('.fschat-balance');
+        const originalContent = balanceBtn.innerHTML;
+        balanceBtn.innerHTML = '✓ Link copied!';
+        
+        // Restore original content after 2 seconds
+        setTimeout(() => {
+          balanceBtn.innerHTML = originalContent;
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy link. Please try again.');
+      });
+    }
+
     // --- Web3 Chat: открытие и закрытие ---
     document.getElementById('closeFullscreenChat').onclick = function() {
       const fullscreenChat = document.getElementById('fullscreenChat');
@@ -3734,6 +3804,114 @@
       document.querySelector('.main-app').style.display = 'flex';
       currentClubKey = null;
     };
+
+    // Menu functionality
+    (function() {
+      const menuBtn = document.querySelector('.fschat-menu-btn');
+      const menu = document.querySelector('.fschat-menu');
+      
+      if (menuBtn && menu) {
+        menuBtn.onclick = function(e) {
+          e.stopPropagation();
+          menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        };
+        
+        document.addEventListener('click', function(e) {
+          if (!menu.contains(e.target) && e.target !== menuBtn) {
+            menu.style.display = 'none';
+          }
+        });
+      }
+    })();
+
+    // Copy chat link functionality
+    function copyCurrentChatLink(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      if (!currentClubKey) return;
+      
+      // Create the chat link
+      const baseUrl = window.location.origin + window.location.pathname;
+      const chatLink = `${baseUrl}?chat=${encodeURIComponent(currentClubKey)}`;
+      
+      // Create temporary input element
+      const tempInput = document.createElement('input');
+      tempInput.style.position = 'fixed';
+      tempInput.style.opacity = 0;
+      tempInput.value = chatLink;
+      document.body.appendChild(tempInput);
+      
+      // Select and copy
+      tempInput.select();
+      tempInput.setSelectionRange(0, 99999); // For mobile devices
+      
+      try {
+        document.execCommand('copy');
+        
+        // Show success message
+        const tooltip = document.createElement('div');
+        tooltip.textContent = 'Link copied!';
+        tooltip.style.cssText = `
+          position: fixed;
+          background: rgba(0, 0, 0, 0.8);
+          color: white;
+          padding: 8px 12px;
+          border-radius: 4px;
+          font-size: 14px;
+          z-index: 10000;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+        `;
+        
+        document.body.appendChild(tooltip);
+        
+        // Remove tooltip after animation
+        setTimeout(() => {
+          tooltip.style.opacity = '0';
+          tooltip.style.transition = 'opacity 0.3s ease';
+          setTimeout(() => document.body.removeChild(tooltip), 300);
+        }, 1500);
+        
+        // Close menu
+        const menu = document.querySelector('.fschat-menu');
+        if (menu) menu.style.display = 'none';
+      } catch (err) {
+        console.error('Copy failed:', err);
+        alert('Failed to copy link. Please try again.');
+      }
+      
+      // Cleanup
+      document.body.removeChild(tempInput);
+    }
+    
+    function showCopySuccess() {
+      // Create and show tooltip
+      const tooltip = document.createElement('div');
+      tooltip.textContent = 'Link copied!';
+      tooltip.style.cssText = `
+        position: fixed;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 14px;
+        z-index: 10000;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      `;
+      
+      document.body.appendChild(tooltip);
+      
+      // Remove tooltip after animation
+      setTimeout(() => {
+        tooltip.style.opacity = '0';
+        tooltip.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => document.body.removeChild(tooltip), 300);
+      }, 1500);
+    }
 
     function openFullscreenChat({ avatar, title, clubId }) {
       const fullscreenChat = document.getElementById('fullscreenChat');
@@ -5250,6 +5428,8 @@ if (discoverItem) {
     updateNotificationBadge();
   })();
 </script>
+
+
 
 </body>
 
